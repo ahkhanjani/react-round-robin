@@ -1,10 +1,13 @@
 import { useState } from 'react';
 import { nanoid } from 'nanoid';
+import { MinusIcon, PlusIcon } from 'lucide-react';
+import uniqolor from 'uniqolor';
+
 import { calculate } from './utils';
 import { Label } from './components/ui/label';
 import { Input } from './components/ui/input';
 import { Button } from './components/ui/button';
-import { MinusIcon, PlusIcon } from 'lucide-react';
+import { cn } from './lib/utils';
 
 export type Process = {
   id: string;
@@ -13,11 +16,20 @@ export type Process = {
   exitTime?: number;
 };
 
+export type Log = {
+  id: string;
+  processId: string;
+  start: number;
+  duration: number;
+  exits?: true;
+};
+
 function App() {
   const [timeSlice, setTimeSlice] = useState<number>(0);
   const [processes, setProcesses] = useState<Process[]>([
     { id: nanoid(), arrivalTime: 0, burstTime: 0 },
   ]);
+  const [logs, setLogs] = useState<Log[] | null>(null);
 
   function createProcess() {
     setProcesses((current) => [
@@ -37,9 +49,7 @@ function App() {
       </header>
       <main className='flex flex-col gap-5 items-center'>
         <div className='max-w-4xl'>
-          <Label htmlFor='time-slice' className='whitespace-nowrap'>
-            Time slice
-          </Label>
+          <Label htmlFor='time-slice'>Time slice</Label>
           <Input
             id='time-slice'
             type='number'
@@ -98,13 +108,15 @@ function App() {
         </Button>
         <Button
           disabled={timeSlice < 1}
-          onClick={() =>
-            console.log(calculate(timeSlice, structuredClone(processes)))
-          }
+          onClick={() => {
+            const newLogs = calculate(timeSlice, structuredClone(processes));
+            console.log(newLogs);
+            setLogs(newLogs as Log[]);
+          }}
         >
           Ok
         </Button>
-        <ResultChart processes={processes} />
+        {logs && <ResultChart logs={logs} processes={processes} />}
       </main>
     </>
   );
@@ -112,6 +124,36 @@ function App() {
 
 export default App;
 
-function ResultChart({ processes }: { processes: Process[] }) {
-  return <div className='w-[1000px] h-12 bg-slate-400'></div>;
+function ResultChart({
+  logs,
+  processes,
+}: {
+  logs: Log[];
+  processes: Process[];
+}) {
+  const unitWidth =
+    1000 /
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    (logs.at(-1)!.start + logs.at(-1)!.duration - processes[0].arrivalTime);
+
+  return (
+    <div className='w-[1000px] h-12 bg-slate-400 flex flex-row gap-0'>
+      {logs.map((log) => (
+        <div
+          key={log.id}
+          className={cn(
+            'h-12 flex flex-col',
+            log.exits && 'border-black border-r-2 border-dashed'
+          )}
+          style={{
+            width: `${unitWidth * log.duration}px`,
+            backgroundColor: uniqolor(log.processId).color,
+          }}
+        >
+          <span className='text-xs'>{log.start}</span>
+          <span>p{processes.findIndex((p) => p.id === log.processId) + 1}</span>
+        </div>
+      ))}
+    </div>
+  );
 }

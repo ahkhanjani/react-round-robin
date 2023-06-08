@@ -1,19 +1,15 @@
-import { type Process } from './App';
-
-type Log = {
-  processId: number;
-  start: number;
-};
+import { nanoid } from 'nanoid';
+import { type Log, type Process } from './App';
 
 export function calculate(timeSlice: number, processes: Process[]) {
   const logs: Log[] = [];
-  const queue = [0];
-  let selectedProcessIndex = 0;
+  let queue = [0];
+  let selectedProcessQueueIndex = 0;
   let timer = processes[0].arrivalTime;
   let biggestSelectedProcessId = 0;
   let processJustQuit = false;
 
-  const selectedProcessId = () => queue[selectedProcessIndex];
+  const selectedProcessRealIndex = () => queue[selectedProcessQueueIndex];
 
   function next() {
     if (
@@ -22,49 +18,49 @@ export function calculate(timeSlice: number, processes: Process[]) {
     ) {
       processJustQuit = false;
       queue.push(biggestSelectedProcessId + 1);
-      selectedProcessIndex = queue.length - 1;
+      selectedProcessQueueIndex = queue.length - 1;
       biggestSelectedProcessId += 1;
       return;
     }
 
     if (processJustQuit) {
       processJustQuit = false;
-      if (selectedProcessIndex > queue.length - 1) {
-        selectedProcessIndex = 0;
+      if (selectedProcessQueueIndex > queue.length - 1) {
+        selectedProcessQueueIndex = 0;
       }
       return;
     }
 
-    if (selectedProcessIndex >= queue.length - 1) {
-      selectedProcessIndex = 0;
+    if (selectedProcessQueueIndex >= queue.length - 1) {
+      selectedProcessQueueIndex = 0;
       return;
     }
 
-    selectedProcessIndex += 1;
-  }
-
-  function log() {
-    if (processes[selectedProcessId()].burstTime > 0) {
-      const log = {
-        processId: selectedProcessId(),
-        start: timer,
-      };
-
-      console.log(log);
-
-      logs.push(log);
-    }
+    selectedProcessQueueIndex += 1;
   }
 
   function tick(spentTime: number) {
     timer += spentTime;
-    processes[selectedProcessId()].burstTime -= spentTime;
+    processes[selectedProcessRealIndex()].burstTime -= spentTime;
   }
 
   function kill() {
     processJustQuit = true;
-    processes[selectedProcessId()].exitTime = timer;
-    queue.filter((_, i) => i !== selectedProcessIndex);
+    processes[selectedProcessRealIndex()].exitTime = timer;
+    queue = queue.filter((_, i) => i !== selectedProcessQueueIndex);
+  }
+
+  function log(spentTime: number, exits?: true) {
+    const log: Log = {
+      id: nanoid(),
+      processId: processes[selectedProcessRealIndex()].id,
+      start: timer,
+      duration: spentTime,
+    };
+
+    if (exits) log.exits = true;
+
+    logs.push(log);
   }
 
   function sumBurstTimes() {
@@ -73,14 +69,15 @@ export function calculate(timeSlice: number, processes: Process[]) {
     return sum;
   }
 
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
-    log();
-
-    if (processes[selectedProcessId()].burstTime > timeSlice) {
-      tick(timeSlice);
+  while (sumBurstTimes() > 0) {
+    if (processes[selectedProcessRealIndex()].burstTime > timeSlice) {
+      const spentTime = timeSlice;
+      log(spentTime);
+      tick(spentTime);
     } else {
-      tick(processes[selectedProcessId()].burstTime);
+      const spentTime = processes[selectedProcessRealIndex()].burstTime;
+      log(spentTime, true);
+      tick(spentTime);
       kill();
     }
 
